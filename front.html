@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Real-time WebSocket Chat</title>
+</head>
+<body>
+  <h2>WebSocket Chat</h2>
+
+  <div id="chatbox" style="border:1px solid black; width:400px; height:300px; overflow:auto; margin-bottom:10px; padding:10px;">
+    <!-- Messages will appear here -->
+  </div>
+
+  <input type="text" id="messageInput" placeholder="Type a message..." style="width:300px;">
+  <button onclick="sendMessage()">Send</button>
+
+  <script>
+    // ✅ UPDATE with your actual WebSocket URL
+    const socket = new WebSocket("wss://4n3qxfuqla.execute-api.us-east-1.amazonaws.com/production/");
+
+    
+    const chatbox = document.getElementById('chatbox');
+    const messageInput = document.getElementById('messageInput');
+
+    socket.onopen = () => {
+      appendMessage('✅ Connected to WebSocket Server');
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const message = data.message || '[No message received]';
+        appendMessage(`👤 ${message}`);
+      } catch (err) {
+        appendMessage(`⚠️ Error parsing message: ${event.data}`);
+      }
+    };
+
+    socket.onclose = () => {
+      appendMessage('❌ Disconnected from WebSocket Server');
+    };
+
+    socket.onerror = (error) => {
+      appendMessage(`⚠️ WebSocket error: ${error}`);
+    };
+
+    function sendMessage() {
+      const message = messageInput.value.trim();
+      if (message) {
+        const payload = {
+          action: 'sendmessage',
+          message: message
+        };
+        socket.send(JSON.stringify(payload));
+        appendMessage(`🧑 You: ${message}`);
+        messageInput.value = '';
+      }
+    }
+
+    function appendMessage(message) {
+      const div = document.createElement('div');
+      div.textContent = message;
+      chatbox.appendChild(div);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
+  </script>
+</body>
+</html>
