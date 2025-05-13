@@ -1,19 +1,29 @@
-// disconnect.js
 const AWS = require('aws-sdk');
 const ddb = new AWS.DynamoDB.DocumentClient();
 
 exports.handler = async (event) => {
-  const connectionId = event.requestContext.connectionId;
-  
-  try {
-    await ddb.delete({
-      TableName: 'Connections',
-      Key: { connectionId }
-    }).promise();
+  console.log("DISCONNECT EVENT:", JSON.stringify(event));
 
-    return { statusCode: 200, body: 'Disconnected.' };
-  } catch (error) {
-    console.error("Error removing connection:", error);
-    return { statusCode: 500, body: 'Failed to disconnect.' };
+  const connectionId = event.requestContext.connectionId;
+
+  const params = {
+    TableName: 'WebSocketConnections',
+    Key: { connectionId }
+  };
+
+  try {
+    await ddb.delete(params).promise();
+    console.log(`Deleted connection ID: ${connectionId}`);
+  } catch (err) {
+    console.error("DynamoDB Error:", err);
+    return {
+      statusCode: 500,
+      body: 'Failed to disconnect: ' + JSON.stringify(err)
+    };
   }
+
+  return {
+    statusCode: 200,
+    body: 'Disconnected.'
+  };
 };
