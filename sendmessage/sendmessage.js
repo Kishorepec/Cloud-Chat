@@ -1,39 +1,39 @@
-// sendmessage.js
 const AWS = require('aws-sdk');
 const ddb = new AWS.DynamoDB.DocumentClient();
 
 exports.handler = async (event) => {
+  console.log("SEND MESSAGE EVENT:", JSON.stringify(event));
+
   const body = JSON.parse(event.body);
   const message = body.message;
-  const connectionId = event.requestContext.connectionId;
+  const domain = event.requestContext.domainName;
+  const stage = event.requestContext.stage;
+  const endpoint = `https://${domain}/${stage}`;
 
+  const apigwManagementApi = new AWS.ApiGatewayManagementApi({
+    endpoint: endpoint,
+  });
+
+  let connectionData;
   try {
-    // 1) Fetch all active connections (to broadcast)
-    const connections = await ddb.scan({ TableName: 'Connections' }).promise();
-
-    // 2) Prepare API Gateway Management client
-    const endpoint = `https://${event.requestContext.domainName}/${event.requestContext.stage}`;
-    const apigw = new AWS.ApiGatewayManagementApi({ endpoint });
-
-    // 3) Post the message to every connection
-    const postCalls = connections.Items.map(async ({ connectionId: cid }) => {
-      try {
-        await apigw.postToConnection({
-          ConnectionId: cid,
-          Data: JSON.stringify({ message, from: connectionId })
-        }).promise();
-      } catch (e) {
-        if (e.statusCode === 410) {
-          // stale connection, delete it
-          await ddb.delete({ TableName: 'Connections', Key: { connectionId: cid } }).promise();
-        }
-      }
-    });
-
-    await Promise.all(postCalls);
-    return { statusCode: 200, body: 'Message sent.' };
-  } catch (error) {
-    console.error("Error sending message:", error);
-    return { statusCode: 500, body: 'Failed to send message.' };
+    connectionData = await ddb.scan({ TableName: 'WebSocketConnections' }).promise();
+  } catch (err) {
+    console.error("DynamoDB Scan Error:", err);
+    return { statusCode: 500, body: 'Failed to scan connections: ' + JSON.stringify(err) };
   }
+
+  const postCalls = connectionData.Items.map(async ({ connectionId }) => {
+    try {
+      await apigwManagementApi.postToConnection({
+        ConnectionId: connectionId,
+        Data: message
+      }).promise();
+    } catch (err) {
+      console.error(`Failed to send to ${connectionId}:`, err);
+    }
+  });
+
+  await Promise.all(postCalls);
+
+  return { statusCode: 200, body: 'Message sent.' };
 };
