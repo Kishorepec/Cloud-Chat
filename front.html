@@ -1,97 +1,96 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>WebSocket Chat Client</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chat App with Nicknames</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f5f5f5;
       margin: 0;
       padding: 20px;
+      background: #f2f2f2;
     }
-    #log {
-      background: #000;
-      color: #0f0;
+    #chat {
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 15px;
       height: 300px;
-      overflow-y: auto;
+      overflow-y: scroll;
+      margin-bottom: 10px;
+    }
+    #messageInput {
+      width: 80%;
       padding: 10px;
-      border-radius: 5px;
-      margin-bottom: 15px;
-      font-size: 14px;
-      white-space: pre-wrap;
     }
-    input, button {
-      font-size: 16px;
-      padding: 8px;
-      margin: 5px;
-    }
-    #controls {
-      display: flex;
-      gap: 10px;
+    #sendBtn {
+      padding: 10px;
     }
   </style>
 </head>
 <body>
 
-<h2>WebSocket Chat Client</h2>
+  <h2>🗨️ Live Chat</h2>
+  <div id="chat"></div>
 
-<div id="log"></div>
+  <input type="text" id="messageInput" placeholder="Type your message..." />
+  <button id="sendBtn">Send</button>
 
-<div id="controls">
-  <input type="text" id="messageInput" placeholder="Enter your message" style="flex: 1;">
-  <button onclick="sendMessage()">Send</button>
-</div>
+  <script>
+    const socketUrl = "wss://bageoxvbug.execute-api.us-east-1.amazonaws.com/production";
+    let nickname = localStorage.getItem("nickname");
 
-<div style="margin-top: 10px;">
-  <button onclick="connectWS()">Connect</button>
-  <button onclick="disconnectWS()">Disconnect</button>
-</div>
-
-<script>
-  let socket;
-  const logDiv = document.getElementById('log');
-
-  function log(message) {
-    const timestamp = new Date().toLocaleTimeString();
-    logDiv.innerText += `[${timestamp}] ${message}\n`;
-    logDiv.scrollTop = logDiv.scrollHeight;
-  }
-
-  function connectWS() {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-      log("Already connected.");
-      return;
+    if (!nickname) {
+      nickname = prompt("Enter your nickname:");
+      if (nickname) {
+        localStorage.setItem("nickname", nickname);
+      } else {
+        nickname = "Anonymous";
+      }
     }
 
-    const url = "wss://bageoxvbug.execute-api.us-east-1.amazonaws.com/production"; // <-- Replace this
-    socket = new WebSocket(url);
+    const socket = new WebSocket(socketUrl);
 
-    socket.onopen = () => log("Connected to WebSocket.");
-    socket.onmessage = event => log("Received: " + event.data);
-    socket.onclose = () => log("Disconnected.");
-    socket.onerror = error => log("WebSocket error: " + error.message);
-  }
+    socket.onopen = () => {
+      console.log("[Connected to WebSocket]");
+      appendMessage("System", "Connected to chat.");
 
-  function sendMessage() {
-    const input = document.getElementById("messageInput");
-    const msg = input.value.trim();
-    if (!msg || !socket || socket.readyState !== WebSocket.OPEN) {
-      log("Cannot send message. Either input is empty or WebSocket is not connected.");
-      return;
+      // Send registration message
+      socket.send(JSON.stringify({ action: "register", nickname }));
+    };
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      const from = data.from || "Anonymous";
+      const message = data.message || "";
+      appendMessage(from, message);
+    };
+
+    socket.onclose = () => {
+      appendMessage("System", "Disconnected from chat.");
+    };
+
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      appendMessage("System", "Error with WebSocket connection.");
+    };
+
+    document.getElementById("sendBtn").onclick = () => {
+      const input = document.getElementById("messageInput");
+      const message = input.value.trim();
+      if (message !== "") {
+        socket.send(JSON.stringify({ message }));
+        input.value = "";
+      }
+    };
+
+    function appendMessage(sender, text) {
+      const chat = document.getElementById("chat");
+      const p = document.createElement("p");
+      p.innerHTML = `<strong>${sender}:</strong> ${text}`;
+      chat.appendChild(p);
+      chat.scrollTop = chat.scrollHeight;
     }
-    socket.send(JSON.stringify({ action: "sendmessage", message: msg }));
-
-    log("Sent: " + msg);
-    input.value = "";
-  }
-
-  function disconnectWS() {
-    if (socket) {
-      socket.close();
-    }
-  }
-</script>
-
+  </script>
 </body>
 </html>
